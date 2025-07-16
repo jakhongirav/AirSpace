@@ -7,7 +7,14 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "server": "ts-node src/server/index.ts"
+    "server": "ts-node --project tsconfig.server.json src/server/index.ts",
+    "deploy:avalanche-fuji": "hardhat run scripts/deploy-avalanche.js --network avalancheFuji",
+    "deploy:avalanche-mainnet": "hardhat run scripts/deploy-avalanche.js --network avalancheMainnet",
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "test-setup": "node test-setup.js",
+    "quick-deploy": "node quick-deploy.js",
+    "check-deployment": "node pre-deployment-checklist.js"
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",
@@ -63,6 +70,12 @@
     "postcss": "^8",
     "tailwindcss": "^3.4.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@nomiclabs/hardhat-ethers": "^2.2.3",
+    "@nomiclabs/hardhat-waffle": "^2.0.6",
+    "hardhat": "^2.19.4",
+    "ethereum-waffle": "^4.0.10",
+    "chai": "^4.3.10",
+    "dotenv": "^16.3.1"
   }
 }

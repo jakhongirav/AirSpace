@@ -225,8 +225,8 @@ contract AirSpaceCCIPReceiver is CCIPReceiver, ERC721URIStorage, Ownable {
         }
 
         // Process any token transfers that came with the message
-        if (any2EvmMessage.tokenAmounts.length > 0) {
-            _processTokenTransfers(any2EvmMessage.messageId, any2EvmMessage.tokenAmounts);
+        if (any2EvmMessage.destTokenAmounts.length > 0) {
+            _processTokenTransfers(any2EvmMessage.messageId, any2EvmMessage.destTokenAmounts);
         }
     }
 
@@ -493,4 +493,11 @@ contract AirSpaceCCIPReceiver is CCIPReceiver, ERC721URIStorage, Ownable {
     
     // Fallback function
     fallback() external payable {}
+
+    /// @notice Override supportsInterface to resolve conflicts between inherited contracts
+    /// @param interfaceId The interface ID to check
+    /// @return bool True if the interface is supported
+    function supportsInterface(bytes4 interfaceId) public view virtual override(CCIPReceiver, ERC721URIStorage) returns (bool) {
+        return super.supportsInterface(interfaceId);
+    }
 } 

@@ -15,14 +15,14 @@ export const CCIP_CHAIN_SELECTORS = {
 // Contract addresses (these would be deployed contracts)
 export const CONTRACT_ADDRESSES = {
   ETHEREUM_SEPOLIA: {
-    CCIP_SENDER: '', // To be deployed
-    CCIP_RECEIVER: '', // To be deployed
-    NFT_CONTRACT: '', // Existing AirSpace NFT contract
+    CCIP_SENDER: process.env.NEXT_PUBLIC_ETHEREUM_CCIP_SENDER || '',
+    CCIP_RECEIVER: process.env.NEXT_PUBLIC_ETHEREUM_CCIP_RECEIVER || '',
+    NFT_CONTRACT: process.env.NEXT_PUBLIC_ETHEREUM_NFT_CONTRACT || '',
   },
   AVALANCHE_FUJI: {
-    CCIP_SENDER: '', // To be deployed
-    CCIP_RECEIVER: '', // To be deployed  
-    NFT_CONTRACT: '', // Polkadot-compatible NFT contract
+    CCIP_SENDER: process.env.NEXT_PUBLIC_AVALANCHE_CCIP_SENDER || '',
+    CCIP_RECEIVER: process.env.NEXT_PUBLIC_AVALANCHE_CCIP_RECEIVER || '',
+    NFT_CONTRACT: process.env.NEXT_PUBLIC_AVALANCHE_NFT_CONTRACT || '',
   },
 } as const;
 

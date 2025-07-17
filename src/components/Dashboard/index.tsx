@@ -317,7 +317,7 @@ const Dashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-10">
-            <div className="bg-dark_grey bg-opacity-35 rounded-3xl p-8">
+            <div className="bg-dark_grey bg-opacity-35 rounded-3xl p-8 overflow-y-scroll">
               <h2 className="text-2xl font-bold mb-6">Live Activity</h2>
               <LiveActivityFeed transactions={transactions} className="h-[400px] overflow-y-auto" />
             </div>
@@ -342,7 +342,7 @@ const Dashboard = () => {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-8">
+          <div className="grid grid-cols-1 gap-8 h-[600px]">
             <div className="bg-dark_grey bg-opacity-35 rounded-3xl p-8">
               <h2 className="text-2xl font-bold mb-6">Global Activity Map</h2>
               <GlobalActivityMap nfts={nfts} transactions={dashboardTransactions} />

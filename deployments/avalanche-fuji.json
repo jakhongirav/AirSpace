@@ -2,17 +2,17 @@
   "network": "unknown",
   "chainId": 43113,
   "deployer": "0xC2cE3a62E6E2deD65Bd32eeFaE3Ee4143A36908A",
-  "timestamp": "2025-07-16T14:56:44.616Z",
+  "timestamp": "2025-07-17T01:13:00.862Z",
   "contracts": {
-    "ccipReceiver": "0x542d8Fdd4Ed358662C181E3BD7EE0a96e5914a96",
-    "ccipSender": "0xC08d54f74599d7F97516824354C0d3C0f5cDD8F8",
-    "nftContract": "0xFD6b357c02e39d7D89E4caabfEdA10Bd95dEAb6c",
-    "zkSyncContract": "0xfEF5f79670D0Dfef772b8A0411100A84AAd69774"
+    "ccipReceiver": "0x76444fe6d30F3f0D01654D3561d5Cd982ffc904c",
+    "ccipSender": "0x3b0978cFF8370697A8BD15bAa8BB45a98CB75926",
+    "nftContract": "0xEF515f802e3026f540BC8654d2B3a475A242a2B9",
+    "zkSyncContract": "0x5bB4E5fE41cEC088734aAC50e30C14742674cb5e"
   },
   "explorerUrls": {
-    "ccipReceiver": "https://explorer.avax-test.network/address/0x542d8Fdd4Ed358662C181E3BD7EE0a96e5914a96",
-    "ccipSender": "https://explorer.avax-test.network/address/0xC08d54f74599d7F97516824354C0d3C0f5cDD8F8",
-    "nftContract": "https://explorer.avax-test.network/address/0xFD6b357c02e39d7D89E4caabfEdA10Bd95dEAb6c",
-    "zkSyncContract": "https://explorer.avax-test.network/address/0xfEF5f79670D0Dfef772b8A0411100A84AAd69774"
+    "ccipReceiver": "https://explorer.avax-test.network/address/0x76444fe6d30F3f0D01654D3561d5Cd982ffc904c",
+    "ccipSender": "https://explorer.avax-test.network/address/0x3b0978cFF8370697A8BD15bAa8BB45a98CB75926",
+    "nftContract": "https://explorer.avax-test.network/address/0xEF515f802e3026f540BC8654d2B3a475A242a2B9",
+    "zkSyncContract": "https://explorer.avax-test.network/address/0x5bB4E5fE41cEC088734aAC50e30C14742674cb5e"
   }
 }

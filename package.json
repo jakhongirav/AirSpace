@@ -14,7 +14,8 @@
     "test": "hardhat test",
     "test-setup": "node test-setup.js",
     "quick-deploy": "node quick-deploy.js",
-    "check-deployment": "node pre-deployment-checklist.js"
+    "check-deployment": "node pre-deployment-checklist.js",
+    "add-minter": "node src/scripts/addAuthorizedMinter.js"
   },
   "dependencies": {
     "@chainlink/contracts": "^1.4.0",

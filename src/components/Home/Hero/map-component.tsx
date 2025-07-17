@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "@iconify/react/dist/iconify.js";
 import mapboxgl from 'mapbox-gl';
@@ -14,26 +15,12 @@ interface Building {
   availableSqFt: number;
   airRightsVolume: number;
   viewProtected: boolean;
-  row: number; // Added row property to indicate position relative to falls
+  row: number;
+  footprint: number[][];
 }
 
 interface MapComponentProps {
   buildings: Building[];
-}
-
-// Define GeoJSON feature types for TypeScript
-interface GeoJSONFeature {
-  type: string;
-  geometry: {
-    type: string;
-    coordinates: number[];
-  };
-  properties: any;
-}
-
-interface MapboxEvent {
-  features?: GeoJSONFeature[];
-  [key: string]: any;
 }
 
 const MapComponent = ({ buildings }: MapComponentProps) => {
@@ -43,6 +30,9 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
   const [popupCoordinates, setPopupCoordinates] = useState<[number, number] | null>(null);
   const [mapLoaded, setMapLoaded] = useState(false);
   const [mapError, setMapError] = useState<string | null>(null);
+  
+  // Simplified hover timeout
+  const hoverTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Initialize map only once
   useEffect(() => {
@@ -62,10 +52,10 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
       const mapInstance = new mapboxgl.Map({
         container: mapContainer.current,
         style: 'mapbox://styles/mapbox/satellite-streets-v12',
-        center: [-79.0767, 43.0828], // Centered on Horseshoe Falls
+        center: [-79.0767, 43.0828],
         zoom: 15.5,
         pitch: 60,
-        bearing: 20, // Angled to face the falls
+        bearing: 20,
         antialias: true
       });
       
@@ -83,18 +73,15 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
         console.log("Map loaded successfully");
         setMapLoaded(true);
         
-        // Immediately add 3D buildings after map loads
         try {
-          // Create data for Niagara Falls buildings with two rows
-          // First row (closer to falls) - shorter buildings
-          // Second row (further from falls) - taller buildings that need view protection
-          const niagaraBuildings = [
+          // Create data for Niagara Falls buildings
+          const niagaraBuildings: Building[] = [
             // First row buildings (closer to falls)
             {
               id: 1,
               name: "Queen Victoria Place",
               coordinates: [-79.0790, 43.0805] as [number, number],
-              height: 25, // Shorter building in first row
+              height: 25,
               pricePerSqFt: 520.50,
               availableSqFt: 15000,
               airRightsVolume: 120000,
@@ -112,11 +99,11 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               id: 2,
               name: "Table Rock Centre",
               coordinates: [-79.0810, 43.0795] as [number, number],
-              height: 20, // Shorter building in first row
+              height: 20,
               pricePerSqFt: 495.75,
               availableSqFt: 12500,
               airRightsVolume: 100000,
-              viewProtected: true, // Already protected
+              viewProtected: true,
               row: 1,
               footprint: [
                 [-79.0815, 43.0790],
@@ -130,11 +117,11 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               id: 3,
               name: "Nikola Tesla Plaza",
               coordinates: [-79.0775, 43.0815] as [number, number],
-              height: 15, // Shortest building in first row
+              height: 15,
               pricePerSqFt: 550.80,
               availableSqFt: 18000,
               airRightsVolume: 150000,
-              viewProtected: false, // Available for air rights purchase
+              viewProtected: false,
               row: 1,
               footprint: [
                 [-79.0780, 43.0810],
@@ -150,11 +137,11 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               id: 4,
               name: "Fallsview Casino Resort",
               coordinates: [-79.0795, 43.0835] as [number, number],
-              height: 45, // Taller building in second row
+              height: 45,
               pricePerSqFt: 425.30,
               availableSqFt: 9200,
               airRightsVolume: 80000,
-              viewProtected: true, // Has protected view
+              viewProtected: true,
               row: 2,
               footprint: [
                 [-79.0800, 43.0830],
@@ -168,11 +155,11 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               id: 5,
               name: "Sheraton on the Falls",
               coordinates: [-79.0775, 43.0845] as [number, number],
-              height: 50, // Taller building in second row
+              height: 50,
               pricePerSqFt: 467.80,
               availableSqFt: 11500,
               airRightsVolume: 95000,
-              viewProtected: false, // Needs view protection
+              viewProtected: false,
               row: 2,
               footprint: [
                 [-79.0780, 43.0840],
@@ -186,11 +173,11 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               id: 6,
               name: "6430 Niagara River Parkway",
               coordinates: [-79.0755, 43.0855] as [number, number],
-              height: 55, // Tallest building in second row
+              height: 55,
               pricePerSqFt: 482.50,
               availableSqFt: 14000,
               airRightsVolume: 110000,
-              viewProtected: true, // Has protected view
+              viewProtected: true,
               row: 2,
               footprint: [
                 [-79.0760, 43.0850],
@@ -202,8 +189,12 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
             }
           ];
           
+          console.log("Adding buildings to map:", niagaraBuildings.length);
+          
           // Add each building to the map
           niagaraBuildings.forEach(building => {
+            console.log("Adding building:", building.name);
+            
             // Create a GeoJSON polygon for the building footprint
             const buildingFootprint: GeoJSON.Feature = {
               type: 'Feature',
@@ -240,7 +231,7 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               'type': 'fill-extrusion',
               'paint': {
                 'fill-extrusion-color': building.viewProtected ? '#4CAF50' : '#FFA500',
-                'fill-extrusion-height': building.height + building.airRightsVolume/5000, // Scaled for visibility
+                'fill-extrusion-height': building.height + building.airRightsVolume/5000,
                 'fill-extrusion-base': building.height,
                 'fill-extrusion-opacity': 0.4
               }
@@ -272,38 +263,62 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
               }
             });
             
-            // Add hover effect
-            mapInstance.on('mousemove', `building-marker-${building.id}`, (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.MapboxGeoJSONFeature[] }) => {
-              if (e.features && e.features.length > 0) {
-                const feature = e.features[0];
-                if (feature.properties) {
-                  mapInstance.getCanvas().style.cursor = 'pointer';
-                  setPopupInfo(feature.properties as Building);
-                  setPopupCoordinates(building.coordinates);
-                  
-                  // Highlight air rights
-                  mapInstance.setPaintProperty(`air-rights-${building.id}`, 'fill-extrusion-opacity', 0.7);
-                }
+            // Simplified hover effect - show popup immediately, hide with delay
+            mapInstance.on('mouseenter', `building-marker-${building.id}`, (e: mapboxgl.MapMouseEvent & { features?: mapboxgl.MapboxGeoJSONFeature[] }) => {
+              console.log("Mouse enter on building:", building.name);
+              mapInstance.getCanvas().style.cursor = 'pointer';
+              
+              // Clear any existing timeout
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+                hoverTimeoutRef.current = null;
               }
+              
+              // Show popup immediately
+              setPopupInfo(building);
+              setPopupCoordinates(building.coordinates);
+              
+              // Highlight air rights
+              mapInstance.setPaintProperty(`air-rights-${building.id}`, 'fill-extrusion-opacity', 0.7);
             });
             
             mapInstance.on('mouseleave', `building-marker-${building.id}`, () => {
+              console.log("Mouse leave on building:", building.name);
               mapInstance.getCanvas().style.cursor = '';
-              setPopupInfo(null);
-              setPopupCoordinates(null);
-              mapInstance.setPaintProperty(`air-rights-${building.id}`, 'fill-extrusion-opacity', 0.4);
+              
+              // Clear any existing timeout
+              if (hoverTimeoutRef.current) {
+                clearTimeout(hoverTimeoutRef.current);
+              }
+              
+              // Set timeout to hide popup after 500ms (increased for better UX)
+              hoverTimeoutRef.current = setTimeout(() => {
+                setPopupInfo(null);
+                setPopupCoordinates(null);
+                
+                // Reset air rights highlight
+                mapInstance.setPaintProperty(`air-rights-${building.id}`, 'fill-extrusion-opacity', 0.4);
+              }, 500);
             });
           });
           
           // Add navigation control
           mapInstance.addControl(new mapboxgl.NavigationControl(), 'bottom-right');
+          
+          console.log("Buildings added successfully");
+          
         } catch (err) {
           console.error('Error adding 3D buildings:', err);
+          setMapError('Error adding buildings: ' + (err as Error).message);
         }
       });
       
       return () => {
         console.log("Cleaning up map");
+        // Clear any pending timeout
+        if (hoverTimeoutRef.current) {
+          clearTimeout(hoverTimeoutRef.current);
+        }
         if (map.current) {
           map.current.remove();
           map.current = null;
@@ -313,7 +328,7 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
       console.error('Error initializing map:', err);
       setMapError('Error initializing map: ' + (err as Error).message);
     }
-  }, []); // Empty dependency array - only run once
+  }, []);
 
   // Safe access to map.project
   const getProjectedCoordinates = (coordinates: [number, number]) => {
@@ -324,6 +339,31 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
       console.error('Error projecting coordinates:', err);
       return { x: 0, y: 0 };
     }
+  };
+
+  // Function to keep popup visible when hovering over it
+  const keepPopupVisible = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+      hoverTimeoutRef.current = null;
+    }
+  };
+
+  // Function to hide popup when leaving popup area
+  const hidePopupOnLeave = () => {
+    if (hoverTimeoutRef.current) {
+      clearTimeout(hoverTimeoutRef.current);
+    }
+    
+    hoverTimeoutRef.current = setTimeout(() => {
+      setPopupInfo(null);
+      setPopupCoordinates(null);
+      
+      // Reset air rights highlight for all buildings
+      if (map.current && popupInfo) {
+        map.current.setPaintProperty(`air-rights-${popupInfo.id}`, 'fill-extrusion-opacity', 0.4);
+      }
+    }, 200);
   };
 
   return (
@@ -349,59 +389,68 @@ const MapComponent = ({ buildings }: MapComponentProps) => {
         </div>
       )}
       
-      {/* Custom popup */}
+      {/* Improved popup with hover-friendly design */}
       {popupInfo && popupCoordinates && mapLoaded && (
         <div 
-          className="absolute z-10 transform -translate-x-1/2 -translate-y-full pointer-events-none"
+          className="absolute z-20 transform -translate-x-1/2 -translate-y-full"
           style={{
             left: getProjectedCoordinates(popupCoordinates).x,
             top: getProjectedCoordinates(popupCoordinates).y - 15
           }}
+          onMouseEnter={keepPopupVisible}
+          onMouseLeave={hidePopupOnLeave}
         >
-          <div className="p-3 bg-darkmode/90 backdrop-blur-md border border-primary/30 rounded-lg shadow-glow-sm max-w-xs">
-            <h3 className="text-white text-lg font-medium">{popupInfo.name}</h3>
-            <p className="text-primary text-xl font-bold">${popupInfo.pricePerSqFt}/sq.ft</p>
-            <div className="mt-2 grid grid-cols-2 gap-2 text-sm text-white">
+          <div className="p-4 bg-darkmode/95 backdrop-blur-md border border-primary/30 rounded-lg shadow-lg max-w-xs">
+            <h3 className="text-white text-lg font-medium mb-2">{popupInfo.name}</h3>
+            <p className="text-primary text-xl font-bold mb-3">${popupInfo.pricePerSqFt}/sq.ft</p>
+            <div className="grid grid-cols-2 gap-2 text-sm text-white mb-3">
               <div>
-                <span className="text-muted">Height:</span>
+                <span className="text-gray-400">Height:</span>
                 <span className="ml-1">{popupInfo.height}m</span>
               </div>
               <div>
-                <span className="text-muted">Available:</span>
+                <span className="text-gray-400">Available:</span>
                 <span className="ml-1">{popupInfo.availableSqFt} sq.ft</span>
               </div>
               <div className="col-span-2">
-                <span className="text-muted">Status:</span>
+                <span className="text-gray-400">Status:</span>
                 <span className={`ml-1 ${popupInfo.viewProtected ? 'text-green-400' : 'text-orange-400'}`}>
                   {popupInfo.viewProtected ? 'View Protected' : 'Unprotected View'}
                 </span>
               </div>
               <div className="col-span-2">
-                <span className="text-muted">Position:</span>
+                <span className="text-gray-400">Position:</span>
                 <span className="ml-1">Row {popupInfo.row} {popupInfo.row === 1 ? '(Falls-facing)' : '(Second row)'}</span>
               </div>
             </div>
-            <button className="mt-3 bg-primary text-darkmode px-4 py-2 rounded-lg text-sm w-full font-medium hover:bg-primary/90 transition-colors pointer-events-auto">
+            <button 
+              className="w-full bg-primary text-darkmode px-4 py-2 rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+              onClick={() => {
+                console.log('Purchase clicked for:', popupInfo.name);
+                // Add navigation or purchase logic here
+              }}
+            >
               {popupInfo.row === 1 && !popupInfo.viewProtected ? 'Sell Air Rights' : 'Buy Air Rights'}
             </button>
           </div>
-          <div className="w-4 h-4 bg-darkmode/90 transform rotate-45 mx-auto -mt-2 border-r border-b border-primary/30"></div>
+          {/* Popup arrow */}
+          <div className="w-3 h-3 bg-darkmode/95 transform rotate-45 mx-auto -mt-1.5 border-r border-b border-primary/30"></div>
         </div>
       )}
       
       {/* Overlay elements */}
-      <div className="absolute top-4 left-4 bg-darkmode/50 backdrop-blur-sm p-3 rounded-lg border border-primary/30 text-white text-sm">
+      <div className="absolute top-4 left-4 bg-darkmode/70 backdrop-blur-sm p-3 rounded-lg border border-primary/30 text-white text-sm">
         <span className="flex items-center">
           <Icon icon="ph:info-bold" className="mr-2" /> Hover over buildings to see air rights details
         </span>
       </div>
       
       <div className="absolute bottom-4 left-4 flex gap-3">
-        <div className="bg-darkmode/50 backdrop-blur-sm p-2 rounded-lg border border-primary/30 text-white text-sm flex items-center">
+        <div className="bg-darkmode/70 backdrop-blur-sm p-2 rounded-lg border border-primary/30 text-white text-sm flex items-center">
           <div className="w-3 h-3 rounded-full bg-green-400 mr-2"></div>
           <span>Protected View</span>
         </div>
-        <div className="bg-darkmode/50 backdrop-blur-sm p-2 rounded-lg border border-primary/30 text-white text-sm flex items-center">
+        <div className="bg-darkmode/70 backdrop-blur-sm p-2 rounded-lg border border-primary/30 text-white text-sm flex items-center">
           <div className="w-3 h-3 rounded-full bg-orange-400 mr-2"></div>
           <span>Unprotected View</span>
         </div>

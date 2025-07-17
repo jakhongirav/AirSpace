@@ -1333,8 +1333,8 @@
       ]
     },
     "/Users/jahongirabdujalilov/Desktop/air-space/src/contracts/PolkadotAirSpaceNFT.sol": {
-      "lastModificationDate": 1752661764854,
-      "contentHash": "9afbe905627ca714df999af42efd0248",
+      "lastModificationDate": 1752698208523,
+      "contentHash": "31b583199705f1981c274bcb3a640c2b",
       "sourceName": "src/contracts/PolkadotAirSpaceNFT.sol",
       "solcConfig": {
         "version": "0.8.24",

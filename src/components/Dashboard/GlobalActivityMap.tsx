@@ -136,7 +136,7 @@ const GlobalActivityMap = ({ nfts, transactions }: GlobalActivityMapProps) => {
 
   return (
     <>
-      <div ref={mapContainer} className="w-full h-full rounded-xl" />
+      <div ref={mapContainer} className="w-full h-[500px] rounded-xl" />
       <style jsx global>{`
         .mapboxgl-popup {
           z-index: 10;

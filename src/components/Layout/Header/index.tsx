@@ -11,7 +11,7 @@ import Signin from "@/components/Auth/SignIn";
 import SignUp from "@/components/Auth/SignUp";
 import { useTheme } from "next-themes";
 import { Icon } from "@iconify/react/dist/iconify.js";
-import AuthButtons from "./AuthButtons";
+import { AuthButtons } from "./AuthButtons";
 
 const Header: React.FC = () => {
   const pathUrl = usePathname();
@@ -85,10 +85,7 @@ const Header: React.FC = () => {
             ))}
           </nav>
           <div className="flex items-center gap-4">
-            <AuthButtons 
-              onSignInClick={() => setIsSignInOpen(true)}
-              onSignUpClick={() => setIsSignUpOpen(true)}
-            />
+            <AuthButtons />
             <button
               onClick={() => setNavbarOpen(!navbarOpen)}
               className="block lg:hidden p-2 rounded-lg"
@@ -126,16 +123,7 @@ const Header: React.FC = () => {
               <MobileHeaderLink key={index} item={item} />
             ))}
             <div className="mt-4 flex flex-col space-y-4 w-full">
-              <AuthButtons 
-                onSignInClick={() => {
-                  setIsSignInOpen(true);
-                  setNavbarOpen(false);
-                }}
-                onSignUpClick={() => {
-                  setIsSignUpOpen(true);
-                  setNavbarOpen(false);
-                }}
-              />
+              <AuthButtons />
             </div>
           </nav>
         </div>

@@ -9,6 +9,7 @@ import 'mapbox-gl/dist/mapbox-gl.css';
 import ZkVerificationBadge from "@/components/ZkVerificationBadge";
 import { OasisPriceValidator } from "@/components/Oasis/OasisPriceValidator";
 import { PriceValidationResult } from "@/services/oasisROFLService";
+import WalletManager from "@/components/WalletManager";
 
 // Dynamically import the map component with no SSR
 const PropertyMapView = dynamic(() => import('./PropertyMapView'), {
@@ -77,46 +78,28 @@ export const ListingsGrid = () => {
         }
         const apiResponse: ApiResponse = await response.json();
         
-        // Transform API data to match our NFT interface
-        const transformedListings: NFT[] = apiResponse.data.map(item => {
-          // Find attributes by trait_type
-          const getAttributeValue = (traitType: string) => {
-            const attr = item.metadata.attributes.find(a => a.trait_type === traitType);
-            return attr ? String(attr.value) : '';
-          };
-          
-          // Parse numeric values
-          const currentHeight = parseInt(getAttributeValue('Current Height')) || 0;
-          const maximumHeight = parseInt(getAttributeValue('Maximum Height')) || 0;
-          const priceValue = parseFloat(getAttributeValue('Price').replace(/,/g, '')) || 0;
-          
-          return {
-            id: item.tokenId.toString(),
-            token_id: item.tokenId,
-            title: item.metadata.title,
-            name: item.metadata.name,
-            description: item.metadata.description,
-            propertyAddress: getAttributeValue('Property Address'),
-            currentHeight: currentHeight,
-            maximumHeight: maximumHeight,
-            availableFloors: maximumHeight - currentHeight,
-            price: priceValue,
-            thumbnail: getListingImage(item.metadata.title),
-            contract_address: "0x1234567890abcdef1234567890abcdef12345678", // Placeholder
-            image_url: getListingImage(item.metadata.title),
-            latitude: item.metadata.properties.coordinates.latitude,
-            longitude: item.metadata.properties.coordinates.longitude
-          };
-        });
+        // Transform API response to NFT format
+        const transformedListings: NFT[] = apiResponse.data.map((item, index) => ({
+          id: item.tokenId.toString(),
+          token_id: item.tokenId,
+          name: item.metadata.name,
+          title: item.metadata.title,
+          description: item.metadata.description,
+          thumbnail: `https://ipfs.io/ipfs/${item.ipfsHash}`,
+          image_url: `https://ipfs.io/ipfs/${item.ipfsHash}`,
+          propertyAddress: item.metadata.title,
+          currentHeight: 48,
+          maximumHeight: 141,
+          availableFloors: 26,
+          price: 125000 + (index * 5000), // Varied pricing
+          latitude: item.metadata.properties.coordinates.latitude,
+          longitude: item.metadata.properties.coordinates.longitude,
+          metadata: item.metadata,
+          owner: apiResponse.wallet,
+          contract_address: "0x1234567890abcdef1234567890abcdef12345678"
+        }));
         
         setListings(transformedListings);
-        
-        // Set all listings as verified (mock data)
-        const verifiedMap: Record<string, boolean> = {};
-        transformedListings.forEach(listing => {
-          verifiedMap[listing.id] = true;
-        });
-        setVerifiedListings(verifiedMap);
       } catch (err) {
         console.error('Error fetching listings:', err);
         setError(err instanceof Error ? err.message : 'Failed to fetch listings');
@@ -164,42 +147,64 @@ export const ListingsGrid = () => {
 
   return (
     <>
-      <div className="grid gap-8">
+      {/* Wallet Manager Section */}
+      <div className="mb-8">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-2xl font-bold text-white mb-4">Wallet Management</h2>
+          <WalletManager showAccountInfo={true} />
+          <div className="mt-4 p-4 bg-blue-900/20 border border-blue-700 rounded-lg">
+            <h3 className="text-lg font-semibold text-blue-400 mb-2">💡 Important Notes:</h3>
+            <ul className="text-blue-300 text-sm space-y-1">
+              <li>• Make sure you're connected with an authorized wallet address</li>
+              <li>• If you get "not authorized" errors, use the "Switch Account" button above</li>
+              <li>• Contact the contract owner to authorize your wallet address</li>
+              <li>• Ensure you have enough AVAX for gas fees (get from <a href="https://faucet.avax.network/" target="_blank" rel="noopener noreferrer" className="underline">Avalanche Faucet</a>)</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
+      {/* Listings Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {listings.map((listing) => (
-          <div key={listing.id} className="bg-dark_grey bg-opacity-35 rounded-3xl p-8">
-            {/* Main listing content - 2 columns */}
-            <div className="grid lg:grid-cols-2 gap-8 mb-8">
-              <div className="relative h-[400px] rounded-2xl overflow-hidden">
-                {/* Replace static image with 3D map */}
-                <PropertyMapView nft={listing} />
+          <div key={listing.id} className="bg-deepSlate rounded-2xl overflow-hidden shadow-xl border border-slate-700/30">
+            {/* Main Content */}
+            <div className="flex flex-col lg:flex-row">
+              {/* Image Section */}
+              <div className="lg:w-1/2 relative">
+                <Image
+                  src={getListingImage(listing.title)}
+                  alt={listing.title}
+                  width={400}
+                  height={300}
+                  className="w-full h-64 lg:h-full object-cover"
+                />
+                                 <div className="absolute top-4 left-4">
+                   <ZkVerificationBadge 
+                     verified={verifiedListings[listing.id] || false}
+                     proofId={`proof-${listing.id}`}
+                     system="groth16"
+                   />
+                 </div>
               </div>
-              
-              <div className="flex flex-col justify-between">
+
+              {/* Content Section */}
+              <div className="lg:w-1/2 p-6 flex flex-col justify-between">
                 <div>
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-white text-28">{listing.title}</h2>
-                    <ZkVerificationBadge 
-                      verified={verifiedListings[listing.id] || false} 
-                      proofId={`proof-${listing.id}`}
-                      system="groth16"
-                    />
-                  </div>
-                  <p className="text-muted text-opacity-80 text-16 mb-4">
-                    {listing.propertyAddress}
-                  </p>
-                  <p className="text-muted text-opacity-60 text-18 mb-6">
-                    {listing.description}
-                  </p>
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <h3 className="text-2xl font-bold text-primary mb-2">{listing.title}</h3>
+                  <p className="text-muted text-16 mb-4 line-clamp-3">{listing.description}</p>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-6">
                     <div className="bg-deepSlate p-4 rounded-xl">
                       <p className="text-muted text-16">Current Height</p>
-                      <p className="text-white text-24">{listing.currentHeight} floors</p>
+                      <p className="text-primary text-24">{listing.currentHeight}m</p>
                     </div>
                     <div className="bg-deepSlate p-4 rounded-xl">
-                      <p className="text-muted text-16">Max Allowed Height</p>
-                      <p className="text-white text-24">{listing.maximumHeight} floors</p>
+                      <p className="text-muted text-16">Max Height</p>
+                      <p className="text-primary text-24">{listing.maximumHeight}m</p>
                     </div>
                   </div>
+
                   <div className="bg-deepSlate p-4 rounded-xl mb-8">
                     <p className="text-muted text-16">Floors to be Bought</p>
                     <p className="text-primary text-24">{listing.availableFloors} floors</p>

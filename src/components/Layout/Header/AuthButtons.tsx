@@ -1,9 +1,10 @@
 "use client";
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useMetaMask } from '@/context/MetaMaskContext';
 import { useCivicAuth } from '@/context/CivicAuthContext';
 import { CivicAuthButton } from '@/components/Auth/CivicAuthButton';
+import { toast } from "react-hot-toast";
 
 // MetaMask Logo Component
 const MetaMaskLogo = ({ className = "w-5 h-5" }: { className?: string }) => (
@@ -58,198 +59,250 @@ const MetaMaskLogo = ({ className = "w-5 h-5" }: { className?: string }) => (
   </svg>
 );
 
-// Format address for display
-const formatAddress = (address: string): string => {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-};
-
-// Format balance for display
-const formatBalance = (balance: string | null): string => {
-  if (!balance) return '0.0000';
-  return balance;
-};
-
-// Get network display name
-const getNetworkDisplayName = (chainId: string | null): string => {
-  if (!chainId) return 'Unknown';
-  
-  // Normalize chainId to lowercase for comparison
-  const normalizedChainId = chainId.toLowerCase();
-  
-  switch (normalizedChainId) {
-    case '0xaa36a7': // Ethereum Sepolia
-      return 'Sepolia';
-    case '0x96d': // Polkadot Paseo (case insensitive)
-      return 'Paseo';
-    case '0xa869': // Avalanche Fuji
-      return 'Fuji';
-    // Add decimal equivalents as backup
-    case '11155111': // Ethereum Sepolia (decimal)
-      return 'Sepolia';
-    case '2397': // Polkadot Paseo (decimal)
-      return 'Paseo';
-    case '43113': // Avalanche Fuji (decimal)
-      return 'Fuji';
-    default:
-      return 'Unknown';
-  }
-};
-
+// Interface for props
 interface AuthButtonsProps {
   onSignInClick?: () => void;
   onSignUpClick?: () => void;
 }
 
-const AuthButtons = ({ onSignInClick, onSignUpClick }: AuthButtonsProps) => {
+export const AuthButtons = () => {
   const { 
     user, 
-    isLoading, 
     connectWallet, 
     disconnectWallet, 
-    switchNetwork,
-    getCurrentNetwork,
-    refreshBalance 
+    isLoading: metaMaskLoading,
+    switchNetwork 
   } = useMetaMask();
-
+  
   const { 
     isConnected: isCivicConnected, 
+    connectWithCivic, 
+    disconnectWallet: disconnectCivic, 
+    isConnecting: civicLoading,
     user: civicUser 
   } = useCivicAuth();
 
-  const handleRefreshBalance = async () => {
-    await refreshBalance();
-  };
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [activeNetwork, setActiveNetwork] = useState<string>('');
 
-  const handleSwitchNetwork = async (network: 'ETHEREUM_SEPOLIA' | 'POLKADOT_PASEO' | 'AVALANCHE_FUJI') => {
-    await switchNetwork(network);
-  };
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (isDropdownOpen) {
+        setIsDropdownOpen(false);
+      }
+    };
 
-  const openExplorer = () => {
-    const currentNetwork = getCurrentNetwork();
-    let explorerUrl = '';
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [isDropdownOpen]);
+
+  // Get current network name
+  const getCurrentNetwork = (): string => {
+    if (!user.chainId) return 'Unknown';
     
-    switch (currentNetwork) {
-      case 'ETHEREUM_SEPOLIA':
-        explorerUrl = `https://sepolia.etherscan.io/address/${user.address}`;
-        break;
-      case 'POLKADOT_PASEO':
-        explorerUrl = `https://paseo.subscan.io/account/${user.address}`;
-        break;
-      case 'AVALANCHE_FUJI':
-        explorerUrl = `https://testnet.snowtrace.io/address/${user.address}`;
-        break;
+    const chainId = user.chainId.toLowerCase();
+    switch (chainId) {
+      case '0xaa36a7': // 11155111 (Sepolia)
+        return 'Ethereum Sepolia';
+      case '0xa869': // 43113 (Fuji)
+        return 'Avalanche Fuji';
+      case '0x96d': // Polkadot Paseo (case insensitive)
+        return 'Polkadot Paseo';
       default:
-        return;
+        // Handle decimal chainIds as well
+        const decimalChainId = parseInt(chainId, 16).toString();
+        switch (decimalChainId) {
+          case '11155111':
+            return 'Ethereum Sepolia';
+          case '43113':
+            return 'Avalanche Fuji';
+          case '2397': // Polkadot Paseo (decimal)
+            return 'Polkadot Paseo';
+          default:
+            return `Chain ${user.chainId}`;
+        }
     }
-    
-    window.open(explorerUrl, '_blank');
   };
 
-  // If both are connected, show both user interfaces
+  // Handle network switching
+  const handleSwitchNetwork = async (network: 'ETHEREUM_SEPOLIA' | 'POLKADOT_PASEO' | 'AVALANCHE_FUJI') => {
+    try {
+      await switchNetwork(network);
+      setActiveNetwork(network);
+      setIsDropdownOpen(false);
+      
+      const networkName = network === 'ETHEREUM_SEPOLIA' ? 'Ethereum Sepolia' : 
+                          network === 'POLKADOT_PASEO' ? 'Polkadot Paseo' : 'Avalanche Fuji';
+      toast.success(`Switched to ${networkName}`);
+    } catch (error) {
+      console.error('Network switch failed:', error);
+      toast.error('Failed to switch network');
+    }
+  };
+
+  // Handle account switching
+  const handleSwitchAccount = async () => {
+    try {
+      // First disconnect
+      await disconnectWallet();
+      
+      // Small delay to ensure disconnection is complete
+      setTimeout(async () => {
+        try {
+          // Request account selection from MetaMask
+          await window.ethereum?.request({
+            method: 'wallet_requestPermissions',
+            params: [{ eth_accounts: {} }]
+          });
+          
+          // Then reconnect with new account
+          await connectWallet();
+          toast.success('Switched to new account successfully!');
+          setIsDropdownOpen(false);
+        } catch (error) {
+          console.error('Error switching account:', error);
+          toast.error('Failed to switch account. Please connect manually.');
+        }
+      }, 500);
+    } catch (error) {
+      console.error('Error switching account:', error);
+      toast.error('Failed to switch account');
+    }
+  };
+
+  // Truncate address
+  const truncateAddress = (address: string) => {
+    return `${address.slice(0, 6)}...${address.slice(-4)}`;
+  };
+
+  // Loading state for both MetaMask and Civic
+  if (metaMaskLoading || civicLoading) {
+    return (
+      <div className="flex items-center space-x-2">
+        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-500"></div>
+        <span className="text-sm text-gray-600 dark:text-gray-300">Connecting...</span>
+      </div>
+    );
+  }
+
+  // If both are connected (premium user experience)
   if (user.isConnected && isCivicConnected) {
     return (
-      <div className="flex items-center gap-4">
-        {/* Civic User Button */}
-        <CivicAuthButton 
-          variant="outline" 
-          size="sm" 
-          showUserButton={true}
-        />
-        
-        {/* MetaMask User Interface */}
-        <div className="relative">
-          <button
-            className="flex items-center gap-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
-            onClick={() => {
-              // Toggle dropdown menu
-            }}
-          >
-            <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-              <MetaMaskLogo className="w-4 h-4" />
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDropdownOpen(!isDropdownOpen);
+          }}
+          className="flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-lg hover:from-blue-700 hover:to-purple-700 transition-all duration-200 shadow-lg"
+        >
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
             </div>
-            
-            <div className="flex flex-col items-start">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {formatAddress(user.address!)}
-                </span>
-                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full">
-                  {getNetworkDisplayName(user.chainId)}
-                </span>
+            <div className="text-left">
+              <div className="text-sm font-medium">
+                {civicUser?.name || civicUser?.email || 'Verified User'}
               </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {formatBalance(user.balance)} {getCurrentNetwork()?.includes('ETHEREUM') ? 'SEP' : getCurrentNetwork()?.includes('AVALANCHE') ? 'AVAX' : 'PAS'}
-              </span>
+              <div className="text-xs opacity-90">
+                {truncateAddress(user.address!)} • {getCurrentNetwork()}
+              </div>
             </div>
-            
-            <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+          </div>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-          {/* MetaMask dropdown menu */}
-          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg ring-1 ring-black dark:ring-gray-600 ring-opacity-5 dark:ring-opacity-50 focus:outline-none z-50 hidden group-hover:block">
-            <div className="py-1">
-              <button
-                onClick={openExplorer}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View on Explorer
-              </button>
-              
-              <button
-                onClick={handleRefreshBalance}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh Balance
-              </button>
+        {/* Dropdown Menu */}
+        {isDropdownOpen && (
+          <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+            <div className="p-4">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-r from-blue-500 to-purple-500 rounded-full flex items-center justify-center">
+                  <span className="text-white font-semibold text-sm">
+                    {(civicUser?.name || civicUser?.email || 'U').charAt(0).toUpperCase()}
+                  </span>
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">
+                    {civicUser?.name || civicUser?.email || 'Verified User'}
+                  </div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    Premium Account
+                  </div>
+                </div>
+              </div>
 
-              <hr className="my-1 border-gray-200 dark:border-gray-600" />
-              
-              <div className="px-4 py-2">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Switch Network</p>
-                <div className="space-y-1">
-                  <button 
-                    onClick={() => handleSwitchNetwork('ETHEREUM_SEPOLIA')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
-                  >
-                    Ethereum Sepolia
-                  </button>
-                  <button 
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Wallet:</span>
+                  <span className="font-mono text-gray-900 dark:text-white">{truncateAddress(user.address!)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Network:</span>
+                  <span className="text-gray-900 dark:text-white">{getCurrentNetwork()}</span>
+                </div>
+                {user.balance && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Balance:</span>
+                    <span className="text-gray-900 dark:text-white">{user.balance}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Network Switch Options */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Switch Network:</div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
                     onClick={() => handleSwitchNetwork('AVALANCHE_FUJI')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
+                    className="text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded flex items-center"
                   >
+                    <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
                     Avalanche Fuji
                   </button>
-                  <button 
-                    onClick={() => handleSwitchNetwork('POLKADOT_PASEO')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
+                  <button
+                    onClick={() => handleSwitchNetwork('ETHEREUM_SEPOLIA')}
+                    className="text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded flex items-center"
                   >
-                    Polkadot Paseo
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    Ethereum Sepolia
                   </button>
                 </div>
               </div>
 
-              <hr className="my-1 border-gray-200 dark:border-gray-600" />
-              
-              <button
-                onClick={disconnectWallet}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Disconnect MetaMask
-              </button>
+              {/* Account Management */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account Management:</div>
+                <button
+                  onClick={handleSwitchAccount}
+                  className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  Switch MetaMask Account
+                </button>
+              </div>
             </div>
+
+            <hr className="my-1 border-gray-200 dark:border-gray-600" />
+            
+            <button
+              onClick={disconnectWallet}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Disconnect MetaMask
+            </button>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -257,108 +310,130 @@ const AuthButtons = ({ onSignInClick, onSignUpClick }: AuthButtonsProps) => {
   // If only MetaMask is connected
   if (user.isConnected && !isCivicConnected) {
     return (
-      <div className="flex items-center gap-4">
-        {/* Option to connect Civic Auth */}
-        <CivicAuthButton 
-          variant="outline" 
-          size="sm"
-          showUserButton={false}
-        />
-        
-        {/* MetaMask User Interface */}
-        <div className="relative">
-          <button
-            className="flex items-center gap-3 px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200"
-            onClick={() => {
-              // Toggle dropdown menu
-            }}
-          >
+      <div className="relative">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setIsDropdownOpen(!isDropdownOpen);
+          }}
+          className="flex items-center space-x-3 px-4 py-2 bg-gradient-to-r from-gray-700 to-gray-800 text-white rounded-lg hover:from-gray-600 hover:to-gray-700 transition-all duration-200 shadow-lg"
+        >
+          <div className="flex items-center space-x-2">
             <div className="w-8 h-8 bg-orange-500 rounded-full flex items-center justify-center">
-              <MetaMaskLogo className="w-4 h-4" />
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+              </svg>
             </div>
-            
-            <div className="flex flex-col items-start">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-900 dark:text-white">
-                  {formatAddress(user.address!)}
-                </span>
-                <span className="text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200 px-2 py-0.5 rounded-full">
-                  {getNetworkDisplayName(user.chainId)}
-                </span>
+            <div className="text-left">
+              <div className="text-sm font-medium">MetaMask Connected</div>
+              <div className="text-xs opacity-90">
+                {truncateAddress(user.address!)} • {getCurrentNetwork()}
               </div>
-              <span className="text-xs text-gray-500 dark:text-gray-400">
-                {formatBalance(user.balance)} {getCurrentNetwork()?.includes('ETHEREUM') ? 'SEP' : getCurrentNetwork()?.includes('AVALANCHE') ? 'AVAX' : 'PAS'}
-              </span>
             </div>
-            
-            <svg className="w-4 h-4 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-            </svg>
-          </button>
+          </div>
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
 
-          {/* Simple dropdown menu */}
-          <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-md shadow-lg ring-1 ring-black dark:ring-gray-600 ring-opacity-5 dark:ring-opacity-50 focus:outline-none z-50 hidden group-hover:block">
-            <div className="py-1">
-              <button
-                onClick={openExplorer}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                </svg>
-                View on Explorer
-              </button>
-              
-              <button
-                onClick={handleRefreshBalance}
-                className="w-full text-left px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                </svg>
-                Refresh Balance
-              </button>
+        {/* Dropdown Menu */}
+        {isDropdownOpen && (
+          <div className="absolute right-0 mt-2 w-80 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700 z-50">
+            <div className="p-4">
+              <div className="flex items-center space-x-3 mb-4">
+                <div className="w-10 h-10 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                  </svg>
+                </div>
+                <div>
+                  <div className="font-medium text-gray-900 dark:text-white">MetaMask User</div>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Standard Account</div>
+                </div>
+              </div>
 
-              <hr className="my-1 border-gray-200 dark:border-gray-600" />
-              
-              <div className="px-4 py-2">
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">Switch Network</p>
-                <div className="space-y-1">
-                  <button 
-                    onClick={() => handleSwitchNetwork('ETHEREUM_SEPOLIA')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
-                  >
-                    Ethereum Sepolia
-                  </button>
-                  <button 
+              <div className="space-y-2 mb-4">
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Wallet:</span>
+                  <span className="font-mono text-gray-900 dark:text-white">{truncateAddress(user.address!)}</span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600 dark:text-gray-400">Network:</span>
+                  <span className="text-gray-900 dark:text-white">{getCurrentNetwork()}</span>
+                </div>
+                {user.balance && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600 dark:text-gray-400">Balance:</span>
+                    <span className="text-gray-900 dark:text-white">{user.balance}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Network Switch Options */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Switch Network:</div>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
                     onClick={() => handleSwitchNetwork('AVALANCHE_FUJI')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
+                    className="text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-red-50 dark:hover:bg-red-900/20 rounded flex items-center"
                   >
+                    <div className="w-2 h-2 bg-red-500 rounded-full mr-2"></div>
                     Avalanche Fuji
                   </button>
-                  <button 
-                    onClick={() => handleSwitchNetwork('POLKADOT_PASEO')}
-                    className="w-full text-left text-xs text-gray-700 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white py-1"
+                  <button
+                    onClick={() => handleSwitchNetwork('ETHEREUM_SEPOLIA')}
+                    className="text-left px-3 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded flex items-center"
                   >
-                    Polkadot Paseo
+                    <div className="w-2 h-2 bg-blue-500 rounded-full mr-2"></div>
+                    Ethereum Sepolia
                   </button>
                 </div>
               </div>
 
-              <hr className="my-1 border-gray-200 dark:border-gray-600" />
-              
-              <button
-                onClick={disconnectWallet}
-                className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
-              >
-                <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                </svg>
-                Disconnect
-              </button>
+              {/* Account Management */}
+              <div className="mb-4">
+                <div className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Account Management:</div>
+                <button
+                  onClick={handleSwitchAccount}
+                  className="w-full text-left px-3 py-2 text-sm text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded flex items-center"
+                >
+                  <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" />
+                  </svg>
+                  Switch MetaMask Account
+                </button>
+              </div>
+
+              {/* Civic Auth Upgrade */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-4">
+                <div className="text-sm font-medium text-blue-900 dark:text-blue-100 mb-1">
+                  Upgrade to Premium
+                </div>
+                <div className="text-xs text-blue-700 dark:text-blue-300 mb-2">
+                  Connect with Civic for enhanced security and features
+                </div>
+                <button
+                  onClick={connectWithCivic}
+                  className="w-full px-3 py-1.5 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                >
+                  Connect Civic Auth
+                </button>
+              </div>
             </div>
+
+            <hr className="my-1 border-gray-200 dark:border-gray-600" />
+            
+            <button
+              onClick={disconnectWallet}
+              className="w-full text-left px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center"
+            >
+              <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+              Disconnect
+            </button>
           </div>
-        </div>
+        )}
       </div>
     );
   }
@@ -367,7 +442,12 @@ const AuthButtons = ({ onSignInClick, onSignUpClick }: AuthButtonsProps) => {
   if (!user.isConnected && isCivicConnected) {
     return (
       <div className="flex items-center gap-4">
-        {/* Option to connect MetaMask */}
+        <CivicAuthButton 
+          variant="outline" 
+          size="sm" 
+          showUserButton={true}
+        />
+        
         <button
           onClick={async () => {
             try {
@@ -376,39 +456,31 @@ const AuthButtons = ({ onSignInClick, onSignUpClick }: AuthButtonsProps) => {
               console.error('Failed to connect MetaMask:', error);
             }
           }}
-          disabled={isLoading}
+          disabled={metaMaskLoading}
           className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-6 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 transform hover:scale-105 active:scale-95"
         >
-          {isLoading ? (
+          {metaMaskLoading ? (
             <>
               <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
               <span>Connecting...</span>
             </>
           ) : (
             <>
-              <MetaMaskLogo className="w-5 h-5" />
+              <MetaMaskLogo className="w-4 h-4" />
               <span>Connect MetaMask</span>
             </>
           )}
         </button>
-        
-        {/* Civic User Button */}
-        <CivicAuthButton 
-          variant="default" 
-          size="default" 
-          showUserButton={true}
-        />
       </div>
     );
   }
 
-  // If neither are connected, show both options
+  // If neither is connected
   return (
     <div className="flex items-center gap-4">
       <CivicAuthButton 
         variant="outline" 
-        size="default"
-        className="border-blue-500 text-blue-600 hover:bg-blue-50 dark:border-blue-400 dark:text-blue-400 dark:hover:bg-blue-900/20"
+        size="sm"
         showUserButton={false}
       />
       
@@ -420,23 +492,21 @@ const AuthButtons = ({ onSignInClick, onSignUpClick }: AuthButtonsProps) => {
             console.error('Failed to connect MetaMask:', error);
           }
         }}
-        disabled={isLoading}
+        disabled={metaMaskLoading}
         className="bg-orange-500 hover:bg-orange-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-medium px-6 py-2 rounded-lg transition-all duration-200 flex items-center gap-2 transform hover:scale-105 active:scale-95"
       >
-        {isLoading ? (
+        {metaMaskLoading ? (
           <>
             <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
             <span>Connecting...</span>
           </>
         ) : (
           <>
-            <MetaMaskLogo className="w-5 h-5" />
+            <MetaMaskLogo className="w-4 h-4" />
             <span>Connect MetaMask</span>
           </>
         )}
       </button>
     </div>
   );
-};
-
-export default AuthButtons; 
+}; 

@@ -91,7 +91,7 @@ const TransactionHistory = ({ transactions, nfts, selectedNFT }: TransactionHist
         )}
       </div>
       
-      <div className="bg-deepSlate rounded-xl overflow-hidden">
+      <div className="bg-deepSlate rounded-xl overflow-x-auto overflow-y-scroll">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-gray-700">

@@ -271,7 +271,7 @@ to the buyer's wallet address: ${userAddress}`;
 
       {/* Transaction Details */}
       {transactionDetails && (
-        <div className="bg-gradient-to-r from-green-900 to-blue-900 p-6 rounded-lg border border-green-700">
+        <div className="bg-gradient-to-r from-green-900 to-blue-900 p-6 rounded-lg border border-green-700 overflow-hidden">
           <h4 className="text-white font-bold mb-4">Transaction Details:</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
             <div>
@@ -280,7 +280,16 @@ to the buyer's wallet address: ${userAddress}`;
             </div>
             <div>
               <span className="text-gray-300">Transaction Hash:</span>
-              <span className="text-white ml-2 font-mono text-xs">{transactionDetails.txHash}</span>
+              <button 
+                onClick={() => {
+                  navigator.clipboard.writeText(transactionDetails.txHash);
+                  toast.success('Transaction hash copied to clipboard!');
+                }}
+                className="text-blue-400 hover:text-blue-300 ml-2 font-mono text-xs underline cursor-pointer transition-colors"
+                title="Click to copy full hash"
+              >
+                {transactionDetails.txHash.slice(0, 8)}...{transactionDetails.txHash.slice(-8)}
+              </button>
             </div>
             <div>
               <span className="text-gray-300">Token ID:</span>

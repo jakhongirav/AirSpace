@@ -2,6 +2,25 @@ import { ethers } from "ethers";
 import { toast } from "react-hot-toast";
 import { NFT } from "@/types/nft";
 
+// Get MetaMask provider safely
+const getMetaMaskProvider = (): any => {
+  if (typeof window === "undefined") return null;
+
+  // If ethereum object exists and is MetaMask
+  if (window.ethereum?.isMetaMask) {
+    return window.ethereum;
+  }
+
+  // If ethereum has providers array, find MetaMask
+  if (window.ethereum?.providers) {
+    return window.ethereum.providers.find(
+      (provider: any) => provider.isMetaMask
+    );
+  }
+
+  return null;
+};
+
 // Contract addresses on Avalanche Fuji
 const AVALANCHE_CONTRACTS = {
   NFT_CONTRACT: "0xEF515f802e3026f540BC8654d2B3a475A242a2B9",
@@ -156,13 +175,14 @@ const NFT_CONTRACT_ABI = [
 
 // Check if user is connected to Avalanche Fuji
 export const checkAvalancheNetwork = async (): Promise<boolean> => {
-  if (!window.ethereum) {
+  const provider = getMetaMaskProvider();
+  if (!provider) {
     throw new Error("MetaMask is not installed");
   }
 
   try {
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
-    const network = await provider.getNetwork();
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
+    const network = await ethersProvider.getNetwork();
     return network.chainId === AVALANCHE_FUJI.chainId;
   } catch (error) {
     console.error("Error checking network:", error);
@@ -172,13 +192,14 @@ export const checkAvalancheNetwork = async (): Promise<boolean> => {
 
 // Switch to Avalanche Fuji network
 export const switchToAvalanche = async (): Promise<void> => {
-  if (!window.ethereum) {
+  const provider = getMetaMaskProvider();
+  if (!provider) {
     throw new Error("MetaMask is not installed");
   }
 
   try {
     // Try to switch to Avalanche Fuji
-    await window.ethereum.request({
+    await provider.request({
       method: "wallet_switchEthereumChain",
       params: [{ chainId: `0x${AVALANCHE_FUJI.chainId.toString(16)}` }],
     });
@@ -186,7 +207,7 @@ export const switchToAvalanche = async (): Promise<void> => {
     // If network doesn't exist, add it
     if (switchError.code === 4902) {
       try {
-        await window.ethereum.request({
+        await provider.request({
           method: "wallet_addEthereumChain",
           params: [
             {
@@ -214,11 +235,16 @@ export const checkAuthorizedMinter = async (
   userAddress: string
 ): Promise<boolean> => {
   try {
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
+    const provider = getMetaMaskProvider();
+    if (!provider) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
     const nftContract = new ethers.Contract(
       AVALANCHE_CONTRACTS.NFT_CONTRACT,
       NFT_CONTRACT_ABI,
-      provider
+      ethersProvider
     );
 
     const isAuthorized = await nftContract.authorizedMinters(userAddress);
@@ -236,8 +262,13 @@ export const addAuthorizedMinter = async (
   userAddress: string
 ): Promise<void> => {
   try {
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
-    const signer = provider.getSigner();
+    const provider = getMetaMaskProvider();
+    if (!provider) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
+    const signer = ethersProvider.getSigner();
     const nftContract = new ethers.Contract(
       AVALANCHE_CONTRACTS.NFT_CONTRACT,
       NFT_CONTRACT_ABI,
@@ -261,7 +292,12 @@ export const checkPropertyExists = async (
   propertyAddress: string
 ): Promise<boolean> => {
   try {
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
+    const provider = getMetaMaskProvider();
+    if (!provider) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
     const nftContract = new ethers.Contract(
       AVALANCHE_CONTRACTS.NFT_CONTRACT,
       NFT_CONTRACT_ABI,
@@ -289,7 +325,8 @@ export const mintNFTOnAvalanche = async (
 }> => {
   try {
     // Check if MetaMask is available
-    if (!window.ethereum) {
+    const provider = getMetaMaskProvider();
+    if (!provider) {
       throw new Error("MetaMask is not installed");
     }
 
@@ -302,8 +339,8 @@ export const mintNFTOnAvalanche = async (
     }
 
     // Create provider and signer
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
-    const signer = provider.getSigner();
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
+    const signer = ethersProvider.getSigner();
 
     // Create contract instance
     const nftContract = new ethers.Contract(
@@ -426,11 +463,16 @@ export const mintNFTOnAvalanche = async (
 // Get contract info
 export const getContractInfo = async () => {
   try {
-    const provider = new ethers.providers.Web3Provider(window.ethereum!);
+    const provider = getMetaMaskProvider();
+    if (!provider) {
+      throw new Error("MetaMask is not installed");
+    }
+
+    const ethersProvider = new ethers.providers.Web3Provider(provider);
     const nftContract = new ethers.Contract(
       AVALANCHE_CONTRACTS.NFT_CONTRACT,
       NFT_CONTRACT_ABI,
-      provider
+      ethersProvider
     );
 
     const owner = await nftContract.owner();

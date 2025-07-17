@@ -150,11 +150,14 @@ export const AuthButtons = () => {
       // Small delay to ensure disconnection is complete
       setTimeout(async () => {
         try {
-          // Request account selection from MetaMask
-          await window.ethereum?.request({
-            method: 'wallet_requestPermissions',
-            params: [{ eth_accounts: {} }]
-          });
+          // Check if MetaMask is available
+          if (typeof window !== 'undefined' && window.ethereum) {
+            // Request account selection from MetaMask
+            await window.ethereum.request({
+              method: 'wallet_requestPermissions',
+              params: [{ eth_accounts: {} }]
+            });
+          }
           
           // Then reconnect with new account
           await connectWallet();

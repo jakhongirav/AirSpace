@@ -126,7 +126,12 @@ const CrossChainPayment: React.FC<CrossChainPaymentProps> = ({
         value: `0x${(nftData.price * 1e18).toString(16)}`, // Convert to hex wei
       };
 
-      const txHash = await window.ethereum!.request({
+      // Use safe provider detection
+      if (typeof window === 'undefined' || !window.ethereum) {
+        throw new Error('MetaMask not available');
+      }
+
+      const txHash = await window.ethereum.request({
         method: 'eth_sendTransaction',
         params: [txData],
       });

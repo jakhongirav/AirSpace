@@ -99,6 +99,23 @@ const isMetaMaskInstalled = (): boolean => {
   ));
 };
 
+// Get MetaMask provider
+const getMetaMaskProvider = (): any => {
+  if (typeof window === 'undefined') return null;
+  
+  // If ethereum object exists and is MetaMask
+  if (window.ethereum?.isMetaMask) {
+    return window.ethereum;
+  }
+  
+  // If ethereum has providers array, find MetaMask
+  if (window.ethereum?.providers) {
+    return window.ethereum.providers.find((provider: any) => provider.isMetaMask);
+  }
+  
+  return null;
+};
+
 // Get MetaMask deeplink for mobile
 const getMetaMaskDeepLink = (): string => {
   const currentUrl = window.location.href;
@@ -148,10 +165,11 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
 
   // Get balance
   const getBalance = async (address: string): Promise<string> => {
-    if (!window.ethereum) throw new Error('MetaMask not found');
+    const provider = getMetaMaskProvider();
+    if (!provider) throw new Error('MetaMask not found');
     
     try {
-      const balance = await window.ethereum!.request({
+      const balance = await provider.request({
         method: 'eth_getBalance',
         params: [address, 'latest'],
       });
@@ -203,15 +221,16 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
         return;
       }
 
-      // Ensure we have the right provider
-      if (!window.ethereum) {
-        throw new Error('Ethereum provider not found');
+      // Get the MetaMask provider
+      const provider = getMetaMaskProvider();
+      if (!provider) {
+        throw new Error('MetaMask provider not found');
       }
 
       // Request account access with better error handling
       let accounts: string[];
       try {
-        accounts = await window.ethereum.request({
+        accounts = await provider.request({
           method: 'eth_requestAccounts',
         });
       } catch (requestError: any) {
@@ -230,7 +249,7 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
       const address = accounts[0];
 
       // Get current chain ID
-      const chainId = await window.ethereum.request({
+      const chainId = await provider.request({
         method: 'eth_chainId',
       });
 
@@ -300,18 +319,23 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
     setError(null);
 
     try {
+      const provider = getMetaMaskProvider();
+      if (!provider) {
+        throw new Error('MetaMask provider not found');
+      }
+
       const networkConfig = SUPPORTED_NETWORKS[network];
 
       // Try to switch to the network
       try {
-        await window.ethereum!.request({
+        await provider.request({
           method: 'wallet_switchEthereumChain',
           params: [{ chainId: networkConfig.chainId }],
         });
       } catch (switchError: any) {
         // Network doesn't exist in MetaMask, add it
         if (switchError.code === 4902) {
-          await window.ethereum!.request({
+          await provider.request({
             method: 'wallet_addEthereumChain',
             params: [networkConfig],
           });
@@ -370,24 +394,41 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
   useEffect(() => {
     if (!isMetaMaskInstalled()) return;
 
-    // Listen for account changes
-    window.ethereum!.on('accountsChanged', handleAccountsChanged);
-    
-    // Listen for chain changes
-    window.ethereum!.on('chainChanged', handleChainChanged);
+    const provider = getMetaMaskProvider();
+    if (!provider) return;
 
-    // Listen for disconnect
-    window.ethereum!.on('disconnect', () => {
-      disconnectWallet();
-    });
+    // Check if provider has event listener methods
+    if (typeof provider.on !== 'function' || typeof provider.removeListener !== 'function') {
+      console.warn('MetaMask provider does not support event listeners');
+      return;
+    }
 
-    return () => {
-      if (window.ethereum) {
-        window.ethereum.removeListener('accountsChanged', handleAccountsChanged);
-        window.ethereum.removeListener('chainChanged', handleChainChanged);
-        window.ethereum.removeListener('disconnect', disconnectWallet);
-      }
-    };
+    try {
+      // Listen for account changes
+      provider.on('accountsChanged', handleAccountsChanged);
+      
+      // Listen for chain changes
+      provider.on('chainChanged', handleChainChanged);
+
+      // Listen for disconnect
+      provider.on('disconnect', () => {
+        disconnectWallet();
+      });
+
+      return () => {
+        try {
+          if (provider && typeof provider.removeListener === 'function') {
+            provider.removeListener('accountsChanged', handleAccountsChanged);
+            provider.removeListener('chainChanged', handleChainChanged);
+            provider.removeListener('disconnect', disconnectWallet);
+          }
+        } catch (error) {
+          console.warn('Error removing MetaMask event listeners:', error);
+        }
+      };
+    } catch (error) {
+      console.warn('Error setting up MetaMask event listeners:', error);
+    }
   }, [user.address]);
 
   // Auto-connect if previously connected
@@ -398,12 +439,19 @@ export const MetaMaskProvider: React.FC<MetaMaskProviderProps> = ({ children }) 
 
       if (wasConnected && savedAddress && isMetaMaskInstalled()) {
         try {
-          const accounts = await window.ethereum!.request({
+          const provider = getMetaMaskProvider();
+          if (!provider) {
+            localStorage.removeItem('metamask_connected');
+            localStorage.removeItem('metamask_address');
+            return;
+          }
+
+          const accounts = await provider.request({
             method: 'eth_accounts',
           });
 
           if (accounts.length > 0 && accounts.includes(savedAddress)) {
-            const chainId = await window.ethereum!.request({
+            const chainId = await provider.request({
               method: 'eth_chainId',
             });
 
